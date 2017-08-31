@@ -18,6 +18,14 @@ export default (request) => {
     const usersURL = 'YOUR USERS FEATURE SERVICE LAYER';
     const geofencesURL = 'YOUR GEOFENCES FEATURE SERVICE LAYER';
 
+    const geofenceIDField = 'OBJECTID';
+    const userIdField = 'OBJECTID';
+    const userLastKnownFencesField = 'LastKnownGeofences';
+
+    const publishEntry = true;
+    const publishExit = true;
+    const publishLocation = true;
+
     const query = require('codec/query_string');
 
     // return if the block does not have anything to analyze
@@ -97,69 +105,16 @@ export default (request) => {
     });
 
 
-    // Notification Functions
-    function publishFenceEntryMessage(userId, fences) {
-        // We're getting close to the user. Let them know!
-        let channelId = `userEntered+${userId}`;
-        let message = {
-            userId: userId,
-            fences: fences
-        };
-
-        // console.log(`User Entered Fence(s) message on channel ${channelId}`);
-        pubnub.publish({
-            channel: channelId,
-            message: message
-        }).then((publishResponse) => {
-            // console.log(`Publish Status: ${publishResponse[0]}:${publishResponse[1]} with TT ${publishResponse[2]}`);
-        });
-    }
-
-    function publishFenceExitMessage(userId, fences) {
-        // We're getting close to the user. Let them know!
-        let channelId = `userExited+${userId}`;
-        let message = {
-            userId: userId,
-            fences: fences
-        };
-
-        // console.log(`User Exited Fence(s) message on channel ${channelId}`);
-        pubnub.publish({
-            channel: channelId,
-            message: message
-        }).then((publishResponse) => {
-            // console.log(`Publish Status: ${publishResponse[0]}:${publishResponse[1]} with TT ${publishResponse[2]}`);
-        });
-    }
-
-    function publishUserLocationMessage(userId, lat, lon) {
-        let channelId = `userLocation+${userId}`;
-        let message = {
-            userId: userId,
-            lat: lat,
-            lon: lon
-        };
-
-        // console.log(`User Location Update on channel ${channelId}`);
-        pubnub.publish({
-            channel: channelId,
-            message: message
-        }).then((publishResponse) => {
-            // console.log(`Publish Status: ${publishResponse[0]}:${publishResponse[1]} with TT ${publishResponse[2]}`);
-        });
-    }
-
-
     // ArcGIS Functions
     function getFencesForLocation(lat, lng, token) {
-        let currentFencesQueryParams = getGeofenceQueryParams(lat, lng);
+        let currentFencesQueryParams = getGeofenceQueryParams(lat, lng, geofenceIDField);
         let queryCurrentFencesURL = `${geofencesURL}/query?${query.stringify(currentFencesQueryParams)}${tokenQuerystringParameter(token)}`;
 
         return xhr.fetch(queryCurrentFencesURL).then((response) => {
             return response.json().then((parsedResponse) => {
                 // console.log('featuresForGeofence ', currentFencesQueryParams.where, parsedResponse.features);
                 let currentGeofences = (parsedResponse.features || []).map(function (f) {
-                    return `${f.attributes.FenceID}`;
+                    return `${f.attributes[geofenceIDField]}`;
                 });
                 request.message.currentFences = currentGeofences;
                 return request.ok();
@@ -174,7 +129,7 @@ export default (request) => {
     }
 
     function getLastKnownFencesForUser(userId, token) {
-        let oldFencesQueryParams = getUserFencesQueryParams(userId);
+        let oldFencesQueryParams = getUserFencesQueryParams(userId, userIdField, userLastKnownFencesField);
         let queryOldFencesURL = `${usersURL}/query?${query.stringify(oldFencesQueryParams)}${tokenQuerystringParameter(token)}`;
 
         return xhr.fetch(queryOldFencesURL).then((response) => {
@@ -189,17 +144,12 @@ export default (request) => {
                     return request.abort();
                 }
 
-                let oldGeofences = parsedResponse.features.map(function (f) {
-                    let fencesStr = f.attributes.LastGeofenceIDs || '';
-                    return fencesStr.length > 0 ? fencesStr.split(',') : [];
-                })[0];
+                let feature = parsedResponse.features[0],
+                    fencesStr = feature.attributes[userLastKnownFencesField] || '',
+                    fences = fencesStr.length > 0 ? fencesStr.split(',') : [];
 
-                if (parsedResponse.features.length > 0) {
-                    // If this exists, we update later, else we add later.
-                    request.message.existingUserOID = parsedResponse.features[0].attributes.OBJECTID;
-                }
-
-                request.message.oldFences = oldGeofences || [];
+                request.message.oldFences = fences;
+                request.message.existingUserOID = feature.attributes.OBJECTID;
 
                 return request.ok();
             }).catch((err) => {
@@ -226,13 +176,13 @@ export default (request) => {
         };
 
         if (currentFences !== undefined) {
-            userJSON.attributes.LastGeofenceIDs = currentFences.join();
+            userJSON.attributes[userLastKnownFencesField] = currentFences.join();
         }
 
         if (request.message.existingUserOID === undefined) {
 
             // Adding new user
-            userJSON.attributes.UserID = userId;
+            userJSON.attributes[userIdField] = userId;
             userUpdateAction = "adds";
 
         } else {
@@ -291,6 +241,66 @@ export default (request) => {
         });
     }
 
+
+    // PubNub Publish Functions
+    function publishFenceEntryMessage(userId, fences) {
+        if (!publishEntry) return;
+
+        // We're getting close to the user. Let them know!
+        let channelId = `userEntered+${userId}`;
+        let message = {
+            userId: userId,
+            fences: fences
+        };
+
+        console.log(`User Entered Fence(s) message on channel ${channelId}`);
+        pubnub.publish({
+            channel: channelId,
+            message: message
+        }).then((publishResponse) => {
+            // console.log(`Publish Status: ${publishResponse[0]}:${publishResponse[1]} with TT ${publishResponse[2]}`);
+        });
+    }
+
+    function publishFenceExitMessage(userId, fences) {
+        if (!publishExit) return;
+
+        // We're getting close to the user. Let them know!
+        let channelId = `userExited+${userId}`;
+        let message = {
+            userId: userId,
+            fences: fences
+        };
+
+        console.log(`User Exited Fence(s) message on channel ${channelId}`);
+        pubnub.publish({
+            channel: channelId,
+            message: message
+        }).then((publishResponse) => {
+            // console.log(`Publish Status: ${publishResponse[0]}:${publishResponse[1]} with TT ${publishResponse[2]}`);
+        });
+    }
+
+    function publishUserLocationMessage(userId, lat, lon) {
+        if (!publishLocation) return;
+
+        let channelId = `userLocation+${userId}`;
+        let message = {
+            userId: userId,
+            lat: lat,
+            lon: lon
+        };
+
+        // console.log(`User Location Update on channel ${channelId}`);
+        pubnub.publish({
+            channel: channelId,
+            message: message
+        }).then((publishResponse) => {
+            // console.log(`Publish Status: ${publishResponse[0]}:${publishResponse[1]} with TT ${publishResponse[2]}`);
+        });
+    }
+
+
     // Token
     function tokenQuerystringParameter(token) {
         return token !== undefined ? `&token=${token}` : '';
@@ -303,7 +313,6 @@ export default (request) => {
             // See if there is a token stored in the PubNub kvstore.
             if (value !== "null") {
                 request.message.arcgisToken = value;
-                // console.log(`Token Exists: ${value}`);
                 return request.ok();
             } else {
                 // There was no token stored (either we never got one, or it expired).
@@ -341,7 +350,7 @@ export default (request) => {
     }
 };
 
-function getGeofenceQueryParams(lat, lng) {
+function getGeofenceQueryParams(lat, lng, idField) {
     // For more information on querying a feature service's layer, see:
     // http://resources.arcgis.com/en/help/arcgis-rest-api/#/Query_Feature_Service_Layer/02r3000000r1000000/
     // 
@@ -351,20 +360,20 @@ function getGeofenceQueryParams(lat, lng) {
         geometry: `${lng},${lat}`,
         inSR: 4326,
         spatialRel: 'esriSpatialRelIntersects',
-        outFields: 'FenceID',
+        outFields: `${idField}`,
         returnGeometry: false,
         f: 'json'
     };
 }
 
-function getUserFencesQueryParams(userId) {
+function getUserFencesQueryParams(userId, userIdField, lastKnownFencesField) {
     // For more information on querying a feature service's layer, see:
     // http://resources.arcgis.com/en/help/arcgis-rest-api/#/Query_Feature_Service_Layer/02r3000000r1000000/
     //
     // Here we query by UserID to get the last known geofences the user was within.
     return {
-        where: `UserID = '${userId}'`,
-        outFields: 'OBJECTID,LastGeofenceIDs',
+        where: `${userIdField} = '${userId}'`,
+        outFields: `OBJECTID,${lastKnownFencesField}`,
         returnGeometry: false,
         resultRecordCount: 1,
         f: 'json'
