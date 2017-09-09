@@ -34,7 +34,7 @@ export default (request) => {
     }
 
     const console = require('console');
-    
+
     // Parse out the required parameters
     let userId = request.message.user;
     let newLat = request.message.lat;
@@ -171,7 +171,7 @@ export default (request) => {
                 'spatialReference': {
                     'wkid': 4326
                 }
-            }, 
+            },
             attributes: {}
         };
 
@@ -207,7 +207,7 @@ export default (request) => {
         };
 
         let addUpdateUserURL = `${usersURL}/applyEdits`;
-
+        
         // Now update or create the user record with the current fences listed.            
         return xhr.fetch(addUpdateUserURL, postOptions).then((updateResponse) => {
             return updateResponse.json().then((parsedResponse) => {
