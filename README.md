@@ -37,7 +37,7 @@ Get started with a simple setup:
 
 2. Publish the [SimpleGeofencing.sd](Sample%20Service%20Definitions/SimpleGeofencing.sd) Service Definition to your ArcGIS Online account. Browse to your "[My Content](https://arcgis.com/home/content.html)" tab. Select `Add Item` > `From my computer` and upload the file, ensuring the `Publish this file as a hosted layer` checkbox is selected.
 
-3. Make a note of the Service URLs for the `UserLocations` and `Geofences` layers on the new published service (be sure to remove the `?token=...` from the end of each URL).
+3. Once published, you will be redirected to the new service's Portal Item page. Make a note of the `Service URL` for the `UserLocations` and `Geofences` layers on the new published service (be sure to remove the `?token=...` from the end of each URL).
 
 ### 2. Create ArcGIS Online OAuth Application
 1. Browse to your "[My Content](https://arcgis.com/home/content.html)" tab and select `Add Item` > `An application`, and select the `Application` radio button. Fill in the fields.
@@ -47,11 +47,16 @@ Get started with a simple setup:
 ### 3. PubNub Function
 1. Create a new PubNub Function with the contents of the [location-geofencing.js](location-geofencing.js) file.
 
-2. Update the `usersURL` and the `geofencesURL` consts with the URLs noted in Step 1.
+2. Update the `usersURL` and the `geofencesURL` consts with the URLs noted in Step 1. Be sure not to include any URL parameters. The URLs should end in `/0` or `/1` for the samples provided.
 
 3. Update the `clientID` and `clientSecret` consts with the **App ID** and **App Secret** noted in Step 2.
 
 That's it. You can now Start your PubNub Function and begin using it.
+
+## Editing Geofences
+There is no specific tool provided with this sample to edit the geofences, however you can use the ArcGIS Online Map Viewer to create, edit and delete geofences.
+
+To do this, navigate to the Portal Item page created when the service was published in Step 1.3, expand the drop down `Open in Map Viewer` and pick `Add layer to new map with full editing control`. For instructions on how to edit the data, see [here](http://doc.arcgis.com/en/arcgis-online/create-maps/edit-features.htm).
 
 ## Customization
 
