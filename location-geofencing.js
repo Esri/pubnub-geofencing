@@ -11,16 +11,22 @@
 
 export default (request) => {
     // Authentication - see https://developers.arcgis.com/applications/new
+    // TODO:
+    // Create a new app at https://developers.arcgis.com/applications/new
+    // Use the new app's App ID and App Secret below.
     const clientID = 'YOUR CLIENTID';
     const clientSecret = 'YOUR CLIENT SECRET';
 
-    // Configure these ArcGIS Feature Service end points. These are the User Point and GeoFence Polygon layers.
-    const usersURL = 'YOUR USERS FEATURE SERVICE LAYER';
+    // Configure these ArcGIS Feature Service end points. These are the Asset Point and GeoFence Polygon layers.
+    // TODO:
+    // Create an Asset Points Feature Service and Geofence Polygons Feature Service in ArcGIS Online.
+    // See https://github.com/esri/pubnub-geofencing for more details.
+    const assetsURL = 'YOUR ASSET LOCATIONS FEATURE SERVICE LAYER';
     const geofencesURL = 'YOUR GEOFENCES FEATURE SERVICE LAYER';
 
     const geofenceIDField = 'OBJECTID';
-    const userIdField = 'OBJECTID';
-    const userLastKnownFencesField = 'LastKnownGeofences';
+    const assetIdField = 'OBJECTID';
+    const assetLastKnownFencesField = 'LastKnownGeofences';
 
     const publishEntry = true;
     const publishExit = true;
@@ -36,16 +42,16 @@ export default (request) => {
     const console = require('console');
 
     // Parse out the required parameters
-    let userId = request.message.user;
+    let assetId = request.message.asset;
     let newLat = request.message.lat;
     let newLng = request.message.lng;
 
-    if (userId === undefined || newLat === undefined || newLng === undefined) {
-        console.log('You must provide "user", "lat" and "lng" parameters!');
-        return request.abort('You must provide "user", "lat" and "lng" parameters!');
-        // Sample parameters to trigger notification when a user enters or leaves a geofence.
+    if (assetId === undefined || newLat === undefined || newLng === undefined) {
+        console.log('You must provide "asset", "lat" and "lng" parameters!');
+        return request.abort('You must provide "asset", "lat" and "lng" parameters!');
+        // Sample parameters to trigger notification when a asset enters or leaves a geofence.
         // {
-        //     "user": "D9A40B40-FD98-4CD0-8DFB-87C4C1D48C19",
+        //     "asset": "D9A40B40-FD98-4CD0-8DFB-87C4C1D48C19",
         // 	   "lat": 40.756,
         //     "lng": -73.963,
         // }
@@ -57,14 +63,14 @@ export default (request) => {
     const promise = require('promise');
 
     // Alert any listeners (e.g. the Management App) of the driver's new Lat/Lng
-    publishUserLocationMessage(userId, newLat, newLng);
+    publishAssetLocationMessage(assetId, newLat, newLng);
 
     // Now do stuff with ArcGIS Online...
     return getToken(clientID, clientSecret).then(() => {
         const arcgisToken = request.message.arcgisToken;
         delete request.message.arcgisToken;
-        // Find the last fences we saw the user in.
-        let getLastFences = getLastKnownFencesForUser(userId, arcgisToken);
+        // Find the last fences we saw the asset in.
+        let getLastFences = getLastKnownFencesForAsset(assetId, arcgisToken);
 
         // Get the fences that the updated lat/lng are in
         let getCurrentFences = getFencesForLocation(newLat, newLng, arcgisToken);
@@ -87,14 +93,14 @@ export default (request) => {
             request.message.exitedFences = exitedFences;
 
             if (enteredFences.length > 0) {
-                publishFenceEntryMessage(userId, enteredFences);
+                publishFenceEntryMessage(assetId, enteredFences);
             }
 
             if (exitedFences.length > 0) {
-                publishFenceExitMessage(userId, exitedFences);
+                publishFenceExitMessage(assetId, exitedFences);
             }
 
-            return updateUserWithGeofences(userId, currentFences, arcgisToken);
+            return updateAssetWithGeofences(assetId, currentFences, arcgisToken);
         }).catch((errs) => {
             console.log('Error happened fetching old and new geofences: ', errs);
             return request.abort();
@@ -128,9 +134,9 @@ export default (request) => {
         });
     }
 
-    function getLastKnownFencesForUser(userId, token) {
-        let oldFencesQueryParams = getUserFencesQueryParams(userId, userIdField, userLastKnownFencesField);
-        let queryOldFencesURL = `${usersURL}/query?${query.stringify(oldFencesQueryParams)}${tokenQuerystringParameter(token)}`;
+    function getLastKnownFencesForAsset(assetId, token) {
+        let oldFencesQueryParams = getAssetFencesQueryParams(assetId, assetIdField, assetLastKnownFencesField);
+        let queryOldFencesURL = `${assetsURL}/query?${query.stringify(oldFencesQueryParams)}${tokenQuerystringParameter(token)}`;
 
         return xhr.fetch(queryOldFencesURL).then((response) => {
             return response.json().then((parsedResponse) => {
@@ -140,16 +146,16 @@ export default (request) => {
                 }
 
                 if (parsedResponse.features.length == 0) {
-                    console.log(`Could not find user ${userId}`);
+                    console.log(`Could not find asset ${assetId}`);
                     return request.abort();
                 }
 
                 let feature = parsedResponse.features[0],
-                    fencesStr = feature.attributes[userLastKnownFencesField] || '',
+                    fencesStr = feature.attributes[assetLastKnownFencesField] || '',
                     fences = fencesStr.length > 0 ? fencesStr.split(',') : [];
 
                 request.message.oldFences = fences;
-                request.message.existingUserOID = feature.attributes.OBJECTID;
+                request.message.existingAssetOID = feature.attributes.OBJECTID;
 
                 return request.ok();
             }).catch((err) => {
@@ -162,9 +168,9 @@ export default (request) => {
         });
     }
 
-    function updateUserWithGeofences(userId, currentFences, token) {
-        let userUpdateAction;
-        let userJSON = {
+    function updateAssetWithGeofences(assetId, currentFences, token) {
+        let assetUpdateAction;
+        let assetJSON = {
             geometry: {
                 'x': newLng,
                 'y': newLat,
@@ -176,40 +182,40 @@ export default (request) => {
         };
 
         if (currentFences !== undefined) {
-            userJSON.attributes[userLastKnownFencesField] = currentFences.join();
+            assetJSON.attributes[assetLastKnownFencesField] = currentFences.join();
         }
 
-        if (request.message.existingUserOID === undefined) {
+        if (request.message.existingAssetOID === undefined) {
 
-            // Adding new user
-            userJSON.attributes[userIdField] = userId;
-            userUpdateAction = "adds";
+            // Adding new asset
+            assetJSON.attributes[assetIdField] = assetId;
+            assetUpdateAction = "adds";
 
         } else {
 
-            // Updating existing user (the record already has the UserID)
-            userJSON.attributes.OBJECTID = request.message.existingUserOID;
-            userUpdateAction = "updates";
+            // Updating existing asset (the record already has the AssetID)
+            assetJSON.attributes.OBJECTID = request.message.existingAssetOID;
+            assetUpdateAction = "updates";
 
         }
 
         // We don't need to pass this back.
-        delete request.message.existingUserOID;
+        delete request.message.existingAssetOID;
 
-        let userUpdateBody = `f=json&${userUpdateAction}=${JSON.stringify(userJSON)}${tokenQuerystringParameter(token)}`;
+        let assetUpdateBody = `f=json&${assetUpdateAction}=${JSON.stringify(assetJSON)}${tokenQuerystringParameter(token)}`;
 
         let postOptions = {
             "method": "POST",
             "headers": {
                 "Content-Type": "application/x-www-form-urlencoded"
             },
-            "body": userUpdateBody
+            "body": assetUpdateBody
         };
 
-        let addUpdateUserURL = `${usersURL}/applyEdits`;
+        let addUpdateAssetURL = `${assetsURL}/applyEdits`;
         
-        // Now update or create the user record with the current fences listed.            
-        return xhr.fetch(addUpdateUserURL, postOptions).then((updateResponse) => {
+        // Now update or create the asset record with the current fences listed.            
+        return xhr.fetch(addUpdateAssetURL, postOptions).then((updateResponse) => {
             return updateResponse.json().then((parsedResponse) => {
                 let result, writeType;
 
@@ -225,35 +231,34 @@ export default (request) => {
                 }
 
                 if (result.success) {
-                    // console.log(`${writeType} completed successfully for ${userId}`, result);
+                    // console.log(`${writeType} completed successfully for ${assetId}`, result);
                     request.message.arcgisObjectId = result.objectId;
                     return request.ok();
                 } else {
-                    return request.abort('Add or Update user in ArcGIS failed.');
+                    return request.abort('Add or Update asset in ArcGIS failed.');
                 }
             }).catch((err) => {
-                console.log('Error happened on parsing the user update response JSON', err);
+                console.log('Error happened on parsing the asset update response JSON', err);
                 return request.abort();
             });
         }).catch((err) => {
-            console.log('Error happened POSTing a user update', err);
+            console.log('Error happened POSTing a asset update', err);
             return request.abort();
         });
     }
 
 
     // PubNub Publish Functions
-    function publishFenceEntryMessage(userId, fences) {
+    function publishFenceEntryMessage(assetId, fences) {
         if (!publishEntry) return;
 
-        // We're getting close to the user. Let them know!
-        let channelId = `userEntered+${userId}`;
+        let channelId = `assetEntered+${assetId}`;
         let message = {
-            userId: userId,
+            assetId: assetId,
             fences: fences
         };
 
-        console.log(`User Entered Fence(s) message on channel ${channelId}`);
+        console.log(`Asset Entered Fence(s) message on channel ${channelId}`);
         pubnub.publish({
             channel: channelId,
             message: message
@@ -262,17 +267,16 @@ export default (request) => {
         });
     }
 
-    function publishFenceExitMessage(userId, fences) {
+    function publishFenceExitMessage(assetId, fences) {
         if (!publishExit) return;
 
-        // We're getting close to the user. Let them know!
-        let channelId = `userExited+${userId}`;
+        let channelId = `assetExited+${assetId}`;
         let message = {
-            userId: userId,
+            assetId: assetId,
             fences: fences
         };
 
-        console.log(`User Exited Fence(s) message on channel ${channelId}`);
+        console.log(`Asset Exited Fence(s) message on channel ${channelId}`);
         pubnub.publish({
             channel: channelId,
             message: message
@@ -281,17 +285,17 @@ export default (request) => {
         });
     }
 
-    function publishUserLocationMessage(userId, lat, lon) {
+    function publishAssetLocationMessage(assetId, lat, lon) {
         if (!publishLocation) return;
 
-        let channelId = `userLocation+${userId}`;
+        let channelId = `assetLocation+${assetId}`;
         let message = {
-            userId: userId,
+            assetId: assetId,
             lat: lat,
             lon: lon
         };
 
-        // console.log(`User Location Update on channel ${channelId}`);
+        // console.log(`Asset Location Update on channel ${channelId}`);
         pubnub.publish({
             channel: channelId,
             message: message
@@ -354,7 +358,7 @@ function getGeofenceQueryParams(lat, lng, idField) {
     // For more information on querying a feature service's layer, see:
     // http://resources.arcgis.com/en/help/arcgis-rest-api/#/Query_Feature_Service_Layer/02r3000000r1000000/
     // 
-    // Here we'll query by geometry to see which geofences the updated user position falls within.
+    // Here we'll query by geometry to see which geofences the updated asset position falls within.
     return {
         geometryType: 'esriGeometryPoint',
         geometry: `${lng},${lat}`,
@@ -366,13 +370,13 @@ function getGeofenceQueryParams(lat, lng, idField) {
     };
 }
 
-function getUserFencesQueryParams(userId, userIdField, lastKnownFencesField) {
+function getAssetFencesQueryParams(assetId, assetIdField, lastKnownFencesField) {
     // For more information on querying a feature service's layer, see:
     // http://resources.arcgis.com/en/help/arcgis-rest-api/#/Query_Feature_Service_Layer/02r3000000r1000000/
     //
-    // Here we query by UserID to get the last known geofences the user was within.
+    // Here we query by AssetID to get the last known geofences the asset was within.
     return {
-        where: `${userIdField} = '${userId}'`,
+        where: `${assetIdField} = '${assetId}'`,
         outFields: `OBJECTID,${lastKnownFencesField}`,
         returnGeometry: false,
         resultRecordCount: 1,

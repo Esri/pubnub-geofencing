@@ -1,5 +1,5 @@
 # Overview
-A PubNub Block that uses ArcGIS services to implement realtime geofence triggering behaviour.
+A PubNub Function that uses ArcGIS services to implement realtime geofence triggering behaviour.
 
 # Features
 * Serverless architecture using ArcGIS Online and PubNub cloud solutions.
@@ -9,19 +9,19 @@ A PubNub Block that uses ArcGIS services to implement realtime geofence triggeri
 
 # Prerequisites
 * [Free ArcGIS Developer account](https://developers.arcgis.com/sign-up).
-* Free PubNub account.
+* [Free PubNub account](https://admin.pubnub.com/#/register).
 
 # Behavior
 
-The PubNub Function requires an ArcGIS polygon feature service that represents geofences, and a point feature service that represents user locations.
+The PubNub Function requires an ArcGIS polygon feature service that represents geofences, and a point feature service that represents asset locations.
 
-Passing a user ID and their current location to the PubNub Function will return whether the user has entered or exited any geofences since the last call. It will also update the user's location record with the new location (and current geofence information).
+Passing an asset ID and its current location to the PubNub Function will return whether the asset has entered or exited any geofences since the last call. It will also update the asset's location record with the new location (and current geofence information).
 
 # Instructions
 
 Follow the [Set Up](#set-up) steps below to get your PubNub function and ArcGIS Online services operating together.
 
-The default insructions cover the simple case. For custom configuration of fields for tracking locations and geofences, see the [Customization](#customization) section
+The default insructions cover the simple case. For custom configuration of fields for tracking asset locations and geofences, see the [Customization](#customization) section
 
 ## Set up
 There are 3 components to set up:
@@ -47,7 +47,7 @@ Get started with a simple setup:
 ### 3. PubNub Function
 1. Create a new PubNub Function with the contents of the [location-geofencing.js](location-geofencing.js) file.
 
-2. Update the `usersURL` and the `geofencesURL` consts with the URLs noted in Step 1. Be sure not to include any URL parameters. The URLs should end in `/0` or `/1` for the samples provided.
+2. Update the `assetsURL` and the `geofencesURL` consts with the URLs noted in Step 1 for UserLocations and Geofences respectively. Be sure not to include any URL parameters. The URLs should end in `/0` or `/1` for the samples provided.
 
 3. Update the `clientID` and `clientSecret` consts with the **App ID** and **App Secret** noted in Step 2.
 
@@ -62,47 +62,47 @@ To do this, navigate to the Portal Item page created when the service was publis
 
 The Geofences service must include a unique ID field. This can be system-managed (such as the default `OBJECTID` field that ArcGIS Online creates) or a custom ID field.
 
-The Locations service must include two fields. A unique ID field, and a string field to store Geofence IDs. This latter field is used to determine whether an updated location represents a move into or out of a geofence.
+The Asset Locations service must include two fields. A unique ID field, and a string field to store Geofence IDs. This latter field is used to determine whether an updated location represents a move into or out of a geofence.
 
-By default, the `SimpleGeofencing.sd` Service Definition makes use of the `OBJECTID` fields. These are integer IDs for each location and geofence. Often you will want to use your own IDs. The [CustomGeofencing.sd](Sample%20Service%20Definitions/CustomGeofencing.sd) shows an example of this. To set it up:
+By default, the `SimpleGeofencing.sd` Service Definition makes use of the `OBJECTID` fields. These are integer IDs for each location and geofence. Often you will want to use your own IDs. The [CustomGeofencing.sd](Sample%20Service%20Definitions/CustomGeofencing.sd) shows an example of this where the assets are Users and their IDs are email addresses. To set it up:
 
 1. Follow Step 1 above to publish the [CustomGeofencing.sd](Sample%20Service%20Definitions/CustomGeofencing.sd) instead of the SimpleGeofencing.sd.
 2. Follow Step 3 to configure the PubNub function. You can reuse the same application from Step 2.
-3. Customize the `geofenceIDField`, `userIdField` and `userLastKnownFencesField` consts in the PubNub Function to reference the custom location and geofence tracking fields:
+3. Customize the `geofenceIDField`, `assetIdField` and `assetLastKnownFencesField` consts in the PubNub Function to reference the custom location and geofence tracking fields:
 
 | Variable | Field Name |
 | -------- | ---------- |
 | `geofenceIDField` | `FenceID` |
-| `userIdField` | `UserID` |
-| `userLastKnownFencesField` | `LastGeofenceIDs` |
+| `assetIdField` | `UserID` |
+| `assetLastKnownFencesField` | `LastGeofenceIDs` |
 
-**Note:** While the custom service still uses `OBJECTID` as row identifiers, the geofencing logic uses other fields to track the geofencing. This is useful if fences and locations are related to records coming from other systems.
+**Note:** While the custom service still uses `OBJECTID` as row identifiers, the geofencing logic uses other fields to track the geofencing. This is useful if fences and asset locations are related to records coming from other systems.
 
 For reference, the above variable configuration table would look like this for the SimpleGeofencing service definition:
 
 | Variable | Field Name |
 | -------- | ---------- |
 | `geofenceIDField` | `OBJECTID` |
-| `userIdField` | `OBJECTID` |
-| `userLastKnownFencesField` | `LastKnownGeofences` |
+| `assetIdField` | `OBJECTID` |
+| `assetLastKnownFencesField` | `LastKnownGeofences` |
 
-The most important thing here is to understand how many geofences a location can be within at any one time. If the geofences do not overlap, that number is `1`. The `userLastKnownFencesField` field length must be long enough to contain the IDs (read from the `geofenceIDField` field) of all the geofences a location can be in at once, with commas between them.
+The most important thing here is to understand how many geofences a location can be within at any one time. If the geofences do not overlap, that number is `1`. The `assetLastKnownFencesField` field must be long enough to contain the IDs (read from the `geofenceIDField` field) of all the geofences a location can be in at once, with commas between them.
 
 **Note:** The sample data creates two layers within a single service. This is by no means a requirement. For example, if the layers are created using the [New Layer](https://developers.arcgis.com/layers/new/) developer tool, each will belong to a separate service.
 
 # Sample Data
-The two sample Service Definitions include 1 user and 3 geofences each. The geofences are in Manhattan at Union Square, Gramercy Park, and the dog park at Union Square. Since the Dog Park is within Union Square, the geofences could potentially overlap.
+The two sample Service Definitions include 1 asset and 3 geofences each. The geofences are in Manhattan at Union Square, Gramercy Park, and the dog park at Union Square. Since the Dog Park is within Union Square, the geofences could potentially overlap. The asset is a User.
 
-The test User ID is:
+The test user ID is:
 * SimpleGeofencing: `1`
 * CustomGeofencing: `jackdoe@awesomecorp.com`
 
-To test entering and exiting the fences, use the following payloads in your PubNub Function Editor (modify the user values as appropriate depending on whether you're using the SimpleGeofencing layers or the CustomGeofencing layers):
+To test entering and exiting the fences, use the following payloads in your PubNub Function Editor (modify the asset values as appropriate depending on whether you're using the SimpleGeofencing layers or the CustomGeofencing layers):
 
 * Gramercy Park:
 	``` JSON
 	{
-		"user": "1",
+		"asset": "1",
 		"lat": 40.73795,
 		"lng": -73.98688
 	}
@@ -111,7 +111,7 @@ To test entering and exiting the fences, use the following payloads in your PubN
 * Union Square:
 	``` JSON
 	{
-		"user": "1",
+		"asset": "1",
 		"lat": 40.73709,
 		"lng": -73.9902
 	}
@@ -120,7 +120,7 @@ To test entering and exiting the fences, use the following payloads in your PubN
 * Union Square Dog Park
 	``` JSON
 	{
-		"user": "1",
+		"asset": "1",
 		"lat": 40.7356,
 		"lng": -73.991
 	}
@@ -129,13 +129,25 @@ To test entering and exiting the fences, use the following payloads in your PubN
 *  No Geofence
 	``` JSON
 	{
-		"user": "1",
+		"asset": "1",
 		"lat": 40.73836,
 		"lng": -73.9899
 	}
 	```
 
 Test each of those payloads and see how the JSON output of the PubNub function describes the geofences that were entered and exited.
+
+If you're using the CustomGeofencing, instead the payload should look like this:
+
+* Gramercy Park:
+	``` JSON
+	{
+		"asset": "jackdoe@awesomecorp.com",
+		"lat": 40.73795,
+		"lng": -73.98688
+	}
+	```
+etc.
 
 ## Contributing
 Anyone and everyone is welcome to [contribute](https://github.com/Esri/maps-app-ios/blob/master/CONTRIBUTING.md). We do accept pull requests.
